@@ -11,7 +11,7 @@ Ce projet est un oscilloscope numérique écrit en Python. Il permet de visualis
 ## Installation
 Clonez le dépôt et installez les dépendances nécessaires:
 ```bash
-git clone <URL_DU_DEPOT>
+git clone https://github.com/urao-xyz/oscilloscope-numerique.git
 cd oscilloscope
 pip install -r requirements.txt
 ```
