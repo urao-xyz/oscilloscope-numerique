@@ -21,11 +21,15 @@ Pour lancer l'oscilloscope, exécutez le script principal:
 ```bash
 python main.py
 ```
+Vous pouvez utiliser le microphone comme source en ajoutant l'option `--mic`.
 
 ## Fonctionnalités
 - Visualisation en temps réel des signaux
 - Analyse de fréquence
 - Enregistrement des données
+- Bouton **Pause/Run** pour mettre l'affichage en pause
+- Bouton **RMS** pour afficher la valeur efficace de chaque canal
+- Déclencheur configurable avec un curseur de seuil et la sélection du front
 
 
 

@@ -5,7 +5,7 @@ from matplotlib.animation import FuncAnimation
 import sympy as sp
 import pandas as pd
 from scipy.signal import butter, filtfilt, find_peaks, welch, spectrogram
-import time
+import argparse
 import os
 
 TAUX_ECHANTILLONNAGE = 1000  # Points par seconde
@@ -17,6 +17,15 @@ NUM_CHANNELS = 2  # Nombre de canaux
 # Initialisation des signaux
 t = np.linspace(0, DUREE, int(TAUX_ECHANTILLONNAGE * DUREE), endpoint=False)
 signals = [np.zeros_like(t) for _ in range(NUM_CHANNELS)]  # Signaux initiaux (vides)
+
+# Variables de contrôle
+pause = False
+trigger_threshold = 0.0
+trigger_edge = 'rising'
+triggered = False
+mic_mode = False
+mic_stream = None
+expression_input = ""
 
 # Création de la figure et des axes
 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
@@ -49,12 +58,16 @@ ax_amp = plt.axes([0.2, 0.2, 0.6, 0.03])
 ax_shift = plt.axes([0.2, 0.15, 0.6, 0.03])
 ax_phase = plt.axes([0.2, 0.1, 0.6, 0.03])
 ax_noise = plt.axes([0.2, 0.05, 0.6, 0.03])
+ax_trigger = plt.axes([0.2, 0.0, 0.6, 0.03])
+ax_edge = plt.axes([0.05, 0.05, 0.1, 0.1])
 
 freq_slider = Slider(ax_freq, 'Fréquence (Hz)', 0.1, 10.0, valinit=FREQUENCE)
 amp_slider = Slider(ax_amp, 'Amplitude', 0.1, 2.0, valinit=AMPLITUDE)
 shift_slider = Slider(ax_shift, 'Décalage temporel (s)', -DUREE, DUREE, valinit=0)
 phase_slider = Slider(ax_phase, 'Phase (rad)', 0, 2*np.pi, valinit=0)
 noise_slider = Slider(ax_noise, 'Bruit', 0, 0.5, valinit=0)
+trigger_slider = Slider(ax_trigger, 'Seuil', -AMPLITUDE*1.5, AMPLITUDE*1.5, valinit=0)
+edge_radio = RadioButtons(ax_edge, ('rising', 'falling'))
 
 # Boutons pour charger un signal, sauvegarder, exporter et appliquer des filtres
 ax_load = plt.axes([0.2, 0.35, 0.2, 0.04])
@@ -65,6 +78,8 @@ ax_peaks = plt.axes([0.4, 0.3, 0.2, 0.04])
 ax_power = plt.axes([0.6, 0.3, 0.2, 0.04])
 ax_thd = plt.axes([0.8, 0.3, 0.1, 0.04])
 ax_spectrogram = plt.axes([0.8, 0.25, 0.1, 0.04])
+ax_pause = plt.axes([0.05, 0.35, 0.1, 0.04])
+ax_rms = plt.axes([0.8, 0.2, 0.1, 0.04])
 
 load_button = Button(ax_load, 'Charger un signal')
 save_button = Button(ax_save, 'Sauvegarder le signal')
@@ -74,6 +89,8 @@ peaks_button = Button(ax_peaks, 'Détecter les pics')
 power_button = Button(ax_power, 'Puissance moyenne')
 thd_button = Button(ax_thd, 'Calculer THD')
 spectrogram_button = Button(ax_spectrogram, 'Spectrogramme')
+pause_button = Button(ax_pause, 'Pause/Run')
+rms_button = Button(ax_rms, 'RMS')
 
 # Fonctions prédéfinies
 ax_func = plt.axes([0.8, 0.15, 0.1, 0.15])
@@ -96,12 +113,48 @@ def update_signals(expression):
     except Exception as e:
         print(f"Erreur dans l'expression : {e}")
 
+# Fonctions de contrôle
+def toggle_pause():
+    global pause
+    pause = not pause
+    state = "pause" if pause else "run"
+    print(f"Mode {state}")
+
+def set_trigger_threshold(val):
+    global trigger_threshold, triggered
+    trigger_threshold = val
+    triggered = False
+
+def set_trigger_edge(label):
+    global trigger_edge, triggered
+    trigger_edge = label
+    triggered = False
+
 # Fonction pour animer l'oscilloscope
 def animate(frame):
+    global triggered
+    if pause:
+        return lines + fft_lines
+
+    if mic_mode and mic_stream is not None:
+        data, _ = mic_stream.read(len(t))
+        for i in range(NUM_CHANNELS):
+            signals[i] = data[:, i] if data.ndim > 1 else data[:, 0]
+
+    if not triggered:
+        sig = signals[0]
+        if trigger_edge == 'rising':
+            cond = np.where((sig[1:] >= trigger_threshold) & (sig[:-1] < trigger_threshold))[0]
+        else:
+            cond = np.where((sig[1:] <= trigger_threshold) & (sig[:-1] > trigger_threshold))[0]
+        if len(cond) == 0:
+            return lines + fft_lines
+        triggered = True
+
     for i, line in enumerate(lines):
-        line.set_ydata(signals[i])  # Mettre à jour les données du signal
+        line.set_ydata(signals[i])
     for i, fft_line in enumerate(fft_lines):
-        fft_line.set_ydata(np.abs(np.fft.fft(signals[i])[:len(t)//2]))  # Mettre à jour la FFT
+        fft_line.set_ydata(np.abs(np.fft.fft(signals[i])[:len(t)//2]))
     return lines + fft_lines
 
 # Fonction pour charger un signal depuis un fichier
@@ -181,6 +234,15 @@ def calculate_power():
         power = np.mean(signals[i]**2)
         print(f"Puissance moyenne du canal {i+1} : {power:.4f}")
 
+# Calculer la valeur RMS
+def calculate_rms():
+    rms_values = []
+    for i in range(NUM_CHANNELS):
+        rms = np.sqrt(np.mean(signals[i] ** 2))
+        rms_values.append(rms)
+        print(f"RMS du canal {i+1} : {rms:.4f}")
+    return rms_values
+
 # Calculer la distorsion harmonique totale (THD)
 def calculate_thd():
     for i in range(NUM_CHANNELS):
@@ -249,12 +311,30 @@ peaks_button.on_clicked(lambda event: detect_peaks(float(input("Entrez le seuil 
 power_button.on_clicked(lambda event: calculate_power())
 thd_button.on_clicked(lambda event: calculate_thd())
 spectrogram_button.on_clicked(lambda event: show_spectrogram())
+pause_button.on_clicked(lambda event: toggle_pause())
+rms_button.on_clicked(lambda event: calculate_rms())
+trigger_slider.on_changed(lambda val: set_trigger_threshold(val))
+edge_radio.on_clicked(lambda label: set_trigger_edge(label))
 
 # Oscilloscope
 if __name__ == "__main__":
-    expression_input = input("Entrez votre fonction mathématique en utilisant 't' comme variable (exemple : sin(2*pi*t)) : ")
-    update_signals(expression_input)  # Mettre à jour les signaux
-    
-    # Démarrer l'animation
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mic", action="store_true", help="Utiliser le microphone")
+    args = parser.parse_args()
+
+    mic_mode = args.mic
+
+    if mic_mode:
+        import sounddevice as sd
+        mic_stream = sd.InputStream(channels=NUM_CHANNELS, samplerate=TAUX_ECHANTILLONNAGE)
+        mic_stream.start()
+        expression_input = "0"
+    else:
+        expression_input = input("Entrez votre fonction mathématique en utilisant 't' comme variable (exemple : sin(2*pi*t)) : ")
+        update_signals(expression_input)
+
     ani = FuncAnimation(fig, animate, frames=range(100), interval=50, blit=True)
     plt.show()
+
+    if mic_stream is not None:
+        mic_stream.close()

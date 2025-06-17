@@ -17,3 +17,13 @@ def test_apply_lowpass_filter_changes_signal():
         assert len(filtered) == len(signal)
         # ensure the filtered signal differs from the original
         assert not np.allclose(filtered, signal)
+
+
+def test_calculate_rms_known_signal():
+    t = np.linspace(0, 1, int(main.TAUX_ECHANTILLONNAGE), endpoint=False)
+    signal = np.sin(2 * np.pi * 5 * t)
+    main.signals = [signal.copy() for _ in range(main.NUM_CHANNELS)]
+    rms_values = main.calculate_rms()
+    expected = np.sqrt(np.mean(signal ** 2))
+    for rms in rms_values:
+        assert np.isclose(rms, expected)
