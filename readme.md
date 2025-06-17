@@ -1,7 +1,7 @@
 # Oscilloscope (Python)
 
 ## Description
-Ce projet est un oscilloscope numérique écrit en Python. Il permet de visualiser des signaux électriques en temps réel à partir d'une fonction mathématique ou d'un fichier de donnés.
+Ce projet est un oscilloscope numérique écrit en Python. Il permet de visualiser des signaux électriques en temps réel à partir d'une fonction mathématique ou d'un fichier de données.
 
 ## Prérequis
 - Python 3.x
