@@ -27,5 +27,7 @@ python main.py
 - Analyse de fréquence
 - Enregistrement des données
 
+
+
 ## Auteurs
 - Téo Champion (https://github.com/urao-xyz)
