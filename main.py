@@ -221,6 +221,9 @@ def onselect(vmin, vmax):
     apply_filter((vmin, vmax), filter_type='bandpass')
     print(f"Filtre bandpass appliqué avec une plage de {vmin} Hz à {vmax} Hz.")
 
+# Sélecteur de plage sur l'axe FFT
+span = SpanSelector(ax2, onselect, 'horizontal', useblit=True, span_stays=True)
+
 # Associer les événements aux fonctions
 freq_slider.on_changed(lambda val: update_signals(expression_input))
 amp_slider.on_changed(lambda val: update_signals(expression_input))
