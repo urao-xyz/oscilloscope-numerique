@@ -133,13 +133,39 @@ def export_graph(filename):
 
 # Appliquer un filtre
 def apply_filter(cutoff_freq, filter_type='lowpass'):
+    """Apply a digital filter to all channels.
+
+    Parameters
+    ----------
+    cutoff_freq : float or tuple
+        Cut-off frequency. For ``bandpass`` and ``bandstop`` filters this must
+        be a tuple ``(low, high)``.
+    filter_type : str, optional
+        Type of filter to apply (``lowpass``, ``highpass``, ``bandpass`` or
+        ``bandstop``).
+    """
+
     nyquist = 0.5 * TAUX_ECHANTILLONNAGE
-    normal_cutoff = cutoff_freq / nyquist
+
+    if filter_type in ('bandpass', 'bandstop'):
+        if not isinstance(cutoff_freq, (list, tuple)) or len(cutoff_freq) != 2:
+            raise ValueError(
+                "cutoff_freq must be a tuple (low, high) for bandpass/bandstop filters"
+            )
+        normal_cutoff = [f / nyquist for f in cutoff_freq]
+    else:
+        normal_cutoff = cutoff_freq / nyquist
+
     b, a = butter(5, normal_cutoff, btype=filter_type, analog=False)
     global signals
     for i in range(NUM_CHANNELS):
         signals[i] = filtfilt(b, a, signals[i])
-    print(f"Filtre {filter_type} appliqué avec une fréquence de coupure de {cutoff_freq} Hz.")
+
+    if isinstance(cutoff_freq, (list, tuple)):
+        desc = f"{cutoff_freq[0]}-{cutoff_freq[1]}"
+    else:
+        desc = f"{cutoff_freq}"
+    print(f"Filtre {filter_type} appliqué avec une fréquence de coupure de {desc} Hz.")
 
 # Détecter les pics
 def detect_peaks(threshold=0.5):
@@ -192,8 +218,7 @@ def show_spectrogram():
 # Sélectionner une plage de fréquence
 def onselect(vmin, vmax):
     global signals
-    cutoff_freq = (vmin + vmax) / 2
-    apply_filter(cutoff_freq, filter_type='bandpass')
+    apply_filter((vmin, vmax), filter_type='bandpass')
     print(f"Filtre bandpass appliqué avec une plage de {vmin} Hz à {vmax} Hz.")
 
 # Associer les événements aux fonctions
@@ -206,7 +231,17 @@ noise_slider.on_changed(lambda val: update_signals(expression_input))
 load_button.on_clicked(lambda event: load_signal_from_file(input("Entrez le nom du fichier CSV à charger : ")))
 save_button.on_clicked(lambda event: save_signals_to_file(input("Entrez le nom du fichier CSV pour sauvegarder les signaux : ")))
 export_button.on_clicked(lambda event: export_graph(input("Entrez le nom du fichier pour exporter le graphique (exemple : graph.png) : ")))
-filter_button.on_clicked(lambda event: apply_filter(float(input("Entrez la fréquence de coupure du filtre (Hz) : ")), input("Entrez le type de filtre (lowpass, highpass, bandpass) : ")))
+def filter_button_callback(event):
+    ftype = input("Entrez le type de filtre (lowpass, highpass, bandpass, bandstop) : ")
+    if ftype in ("bandpass", "bandstop"):
+        low = float(input("Entrez la fréquence de coupure basse (Hz) : "))
+        high = float(input("Entrez la fréquence de coupure haute (Hz) : "))
+        apply_filter((low, high), ftype)
+    else:
+        cutoff = float(input("Entrez la fréquence de coupure du filtre (Hz) : "))
+        apply_filter(cutoff, ftype)
+
+filter_button.on_clicked(filter_button_callback)
 peaks_button.on_clicked(lambda event: detect_peaks(float(input("Entrez le seuil pour la détection des pics : "))))
 power_button.on_clicked(lambda event: calculate_power())
 thd_button.on_clicked(lambda event: calculate_thd())

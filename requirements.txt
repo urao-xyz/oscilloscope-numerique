@@ -1,5 +1,5 @@
 numpy
-scapy
+scipy
 sympy
 matplotlib
 pandas
